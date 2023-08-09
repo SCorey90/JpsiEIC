@@ -45,15 +45,20 @@ vector<TLorentzVector> decay_Jpsi( TH1F *cos2phi_hist , TLorentzVector lvJpsi ) 
     double elec_mass = 0.000511 ;
     double Jpsi_pt = lvJpsi.Pt();
 
-    double cos2phi_val = cos2phi_hist->GetBinContent( cos2phi_hist->FindBin(Jpsi_pt) ) ;
-    double phi_val = acos( cos2phi_val ) / 2 ;
+    double cos2phi_val = cos2phi_hist->GetBinContent( cos2phi_hist->FindBin(Jpsi_pt) );
+    auto * phi_sample_hist = new TH1F("phi_sample_hist", "phi sample hist", 1000, -3.14, 3.14);
+    for ( int i = 0; i < 1000 ; i++ ) {
+        phi_sample_hist->SetBinContent( i, 1 + cos2phi_val*cos( 2*phi_sample_hist->GetBinCenter(i) ) );
+    }
+    double phi_val = phi_sample_hist->GetRandom();
 
     TLorentzVector PosLV, ElecLV ;
     double az_ang =  lvJpsi.Phi() + phi_val ;
     double pol_ang = acos( rng.Uniform(-1, 1) );
-    double absP = sqrt((lvJpsi.M()*lvJpsi.M()/4) - elec_mass*elec_mass);
-    PosLV.SetPxPyPzE( (absP*sin(pol_ang)*cos(az_ang)), (absP*sin(pol_ang)*sin(az_ang)), (absP*cos(pol_ang)), (sqrt(absP*absP + elec_mass*elec_mass)) );
-    ElecLV.SetPxPyPzE( (-absP*sin(pol_ang)*cos(az_ang)), (-absP*sin(pol_ang)*sin(az_ang)), (-absP*cos(pol_ang)), (sqrt(absP*absP + elec_mass*elec_mass)) );
+    double E_daughter = lvJpsi.M()/2 ;
+    double absP = sqrt((E_daughter*E_daughter) - elec_mass*elec_mass);
+    PosLV.SetPxPyPzE( (absP*sin(pol_ang)*cos(az_ang)), (absP*sin(pol_ang)*sin(az_ang)), (absP*cos(pol_ang)), (E_daughter) );
+    ElecLV.SetPxPyPzE( (-absP*sin(pol_ang)*cos(az_ang)), (-absP*sin(pol_ang)*sin(az_ang)), (-absP*cos(pol_ang)), (E_daughter) );
 
     PosLV.Boost(lvJpsi.BoostVector());
     ElecLV.Boost(lvJpsi.BoostVector());
@@ -74,7 +79,7 @@ double calc_Phi( TLorentzVector lv1, TLorentzVector lv2) {
     double PcrossQ = (Px*Qy) - (Py*Qx);
     double cosphi = (Px*Qx + Py*Qy) / (lvPlus.Pt()*lvMinus.Pt());
     double PairPhi = acos(cosphi);
-    if ( PcrossQ > 0 ){
+        if ( PcrossQ > 0 ){
         return PairPhi - 3.141592;
     } else {
         return 3.141592 - PairPhi;
@@ -82,9 +87,10 @@ double calc_Phi( TLorentzVector lv1, TLorentzVector lv2) {
 }
 
 
-
 /** Main */
 int main(int argc, char **argv) {
+    gErrorIgnoreLevel = kError;
+
     //arg setup
     if( argc<2 ) {
         std::cout << "Usage: " << argv[0] << "<output_hepmc3_file>" << std::endl;
@@ -108,27 +114,28 @@ int main(int argc, char **argv) {
     no_photon_cos2phi_csv->ReadFile("/Users/samcorey/code/JpsiEIC/no_photon_cos2phivspt.csv", "x/D:y");
     no_photon_cos2phi_csv->Draw("y:x");
 
-    auto * pt_hist = new TH1F("pt_hist", "P_T hist to sample; P_{T}; counts", 50, 0, sqrt(0.16));
+    auto * pt_hist = new TH1F("pt_hist", "P_T hist to sample; P_{T} (GeV/c); counts", 100, 0, sqrt(0.16));
     double * sample_pt = pt_csv->GetV2();
     double * sample_dndp = pt_csv->GetV1();
-    for (int n=0; n<50; n++) {
+    for (int n=0; n<100; n++) {
+        vector<double> pt_diffs;
         for (int i=0; i<83; i++) {
-            if ( abs(sqrt(sample_pt[i]) - pt_hist->GetBinCenter(n+1)) < 0.8 * pt_hist->GetBinWidth(n+1) ) {
-                pt_hist->SetBinContent(n+1, sample_dndp[i]);
-            }
+            pt_diffs.push_back( abs( pt_hist->GetBinCenter(n+1) - sqrt(sample_pt[i+1])) );
         }
+        int min_index = distance( begin(pt_diffs), min_element( begin(pt_diffs), end(pt_diffs) ) );
+        pt_hist->SetBinContent(n+1, sample_dndp[min_index]);
     }
 
     auto * mCos2phi_hist = new TH1F("cos2phi_hist", "cos2phi hist to sample", 100, 0, 0.2);
     double * sample_xvals = cos2phi_csv->GetV2();
     double * sample_cos2phi = cos2phi_csv->GetV1();
-    for (int n=1; n<101; n++) {
+    for (int n=0; n<100; n++) {
         vector<double> pt_diffs;
         for (int i=0; i<166 ; i++) {
-            pt_diffs.push_back( abs(mCos2phi_hist->GetBinCenter(n+1) - sample_xvals[i]) );
+            pt_diffs.push_back( abs(mCos2phi_hist->GetBinCenter(n+1) - sample_xvals[i+1]) );
         }
         int min_index = distance( begin(pt_diffs), min_element( begin(pt_diffs), end(pt_diffs) ) );
-        mCos2phi_hist->SetBinContent(n, sample_cos2phi[min_index]);
+        mCos2phi_hist->SetBinContent(n+1, sample_cos2phi[min_index]);
     }
 
     auto * mNo_Photon_Cos2phi_hist = new TH1F("no_photon_cos2phi_hist", "cos2phi hist to sample", 100, 0, 0.2);
@@ -137,19 +144,21 @@ int main(int argc, char **argv) {
     for (int n=1; n<101; n++) {
         vector<double> pt_diffs;
         for (int i=0; i<253 ; i++) {
-            pt_diffs.push_back( abs(mNo_Photon_Cos2phi_hist->GetBinCenter(n+1) - no_photon_xvals[i]) );
+            pt_diffs.push_back( abs(mNo_Photon_Cos2phi_hist->GetBinCenter(n) - no_photon_xvals[i+1]) );
         }
         int min_index_no_photon = distance( begin(pt_diffs), min_element( begin(pt_diffs), end(pt_diffs) ) );
         mNo_Photon_Cos2phi_hist->SetBinContent(n, no_photon_cos2phi[min_index_no_photon]);
     }
+ 
 
     //tests
     auto * mTest_Cos2phivsPT = new TH2F("mTest_Cos2phivsPT", "Sampled electron pair", 100, -2, 2, 50, 0, 0.2);
-
+    auto * mTest_hepmc = new TH1F("mTest_hepmc", "hepmc Electron component", 50, -1, 1);
+    auto * mTest_root = new TH1F("mTest_root", "root Electron component", 50, -3.14, 3.14);
     //event loop
     int events_parsed = 0;
 
-    for( int i = 0; i<3000; i++ ) {
+    for( int i = 0; i<10000; i++ ) {
 
         GenEvent evt;
 
@@ -160,60 +169,42 @@ int main(int argc, char **argv) {
             vector<TLorentzVector> pair_LVs = decay_Jpsi( mCos2phi_hist , JpsiVec );
             TLorentzVector PosLV = pair_LVs[0];
             TLorentzVector ElecLV = pair_LVs[1];
+            double PairPhi = calc_Phi(PosLV, ElecLV);
 
             mTest_Cos2phivsPT->Fill( 2*cos(2*calc_Phi(PosLV, ElecLV)), (PosLV+ElecLV).Pt() );
+            mTest_root->Fill( PairPhi );
 
-            double px0 = JpsiVec.Px();
-            double py0 = JpsiVec.Py();
-            double pz0 = JpsiVec.Pz();
-            double E0 = JpsiVec.E();
+            FourVector hepmcJpsi = FourVector( JpsiVec.Px(), JpsiVec.Py(), JpsiVec.Pz(), JpsiVec.E() );
+            FourVector hepmcPos = FourVector( PosLV.Px(), PosLV.Py(), PosLV.Pz(), PosLV.E() );
+            FourVector hepmcElec = hepmcJpsi - hepmcPos ;
 
-            double px1 = PosLV.Px();
-            double py1 = PosLV.Py();
-            double pz1 = PosLV.Pz();
-            double E1 = PosLV.E();
-
-            double px2 = ElecLV.Pz();
-            double py2 = ElecLV.Py();
-            double pz2 = ElecLV.Pz();
-            double E2 = ElecLV.E();
-
-            GenParticlePtr p0 = std::make_shared<GenParticle>( FourVector( px0, py0, pz0, E0  ), 443, 4 );
-            GenParticlePtr p1 = std::make_shared<GenParticle>( FourVector( px1, py1, pz1, E1  ), -11,  1 );
-            GenParticlePtr p2 = std::make_shared<GenParticle>( FourVector( px2, py2, pz2, E2  ), 11,  1 );
+            GenParticlePtr p0 = std::make_shared<GenParticle>( hepmcJpsi, 443, 4 );
+            GenParticlePtr p1 = std::make_shared<GenParticle>( hepmcPos, -11,  1 );
+            GenParticlePtr p2 = std::make_shared<GenParticle>( hepmcElec, 11,  1 );
 
             GenVertexPtr v1 = std::make_shared<GenVertex>();
-            v1->add_particle_out(p1);
-            v1->add_particle_out(p2);
             v1->add_particle_in(p0);
+            v1->add_particle_out(p2);
+            v1->add_particle_out(p1);
             v1->set_status(4);
             evt.add_vertex(v1);
 
         } else {
             vector<TLorentzVector> pair_LVs = decay_Jpsi( mNo_Photon_Cos2phi_hist , JpsiVec );
             TLorentzVector PosLV = pair_LVs[0];
-            TLorentzVector ElecLV = pair_LVs[1];
+            TLorentzVector ElecLV = JpsiVec - PosLV;
 
             mTest_Cos2phivsPT->Fill( 2*cos(2*calc_Phi(PosLV, ElecLV)), (PosLV+ElecLV).Pt() );
 
-            double px0 = JpsiVec.Px();
-            double py0 = JpsiVec.Py();
-            double pz0 = JpsiVec.Pz();
-            double E0 = JpsiVec.E();
+            mTest_Cos2phivsPT->Fill( 2*cos(2*calc_Phi(PosLV, ElecLV)), (PosLV+ElecLV).Pt() );
 
-            double px1 = PosLV.Px();
-            double py1 = PosLV.Py();
-            double pz1 = PosLV.Pz();
-            double E1 = PosLV.E();
-        
-            double px2 = ElecLV.Pz();
-            double py2 = ElecLV.Py();
-            double pz2 = ElecLV.Pz();
-            double E2 = ElecLV.E();
+            FourVector hepmcJpsi = FourVector( JpsiVec.Px(), JpsiVec.Py(), JpsiVec.Pz(), JpsiVec.E() );
+            FourVector hepmcPos = FourVector( PosLV.Px(), PosLV.Py(), PosLV.Pz(), PosLV.E() );
+            FourVector hepmcElec = hepmcJpsi - hepmcPos ;
 
-            GenParticlePtr p0 = std::make_shared<GenParticle>( FourVector( px0, py0, pz0, E0  ), 443, 4 );
-            GenParticlePtr p1 = std::make_shared<GenParticle>( FourVector( px1, py1, pz1, E1  ), -11,  1 );
-            GenParticlePtr p2 = std::make_shared<GenParticle>( FourVector( px2, py2, pz2, E2  ), 11,  1 );
+            GenParticlePtr p0 = std::make_shared<GenParticle>( hepmcJpsi, 443, 4 );
+            GenParticlePtr p1 = std::make_shared<GenParticle>( hepmcPos, -11,  1 );
+            GenParticlePtr p2 = std::make_shared<GenParticle>( hepmcElec, 11,  1 );
 
             GenVertexPtr v1 = std::make_shared<GenVertex>();
 	    v1->add_particle_out(p1);
@@ -231,7 +222,7 @@ int main(int argc, char **argv) {
         text_output.write_event(evt);
         ++events_parsed;
 
-        if( events_parsed%100 == 0 ) {
+        if( events_parsed%1000 == 0 ) {
             std::cout << "Event: " << events_parsed << std::endl;
         }
     }
@@ -244,6 +235,18 @@ int main(int argc, char **argv) {
     mTest_Cos2phivsPT->Draw("colz");
     gPad->Print( "/Users/samcorey/code/JpsiEIC/plots/plot_mTest_Cos2phivsPT.pdf" );
     gPad->Print( "/Users/samcorey/code/JpsiEIC/plots/plot_mTest_Cos2phivsPT.png" );
+
+    makeCanvas();
+    mTest_hepmc->SetLineColor(kBlack);
+    mTest_hepmc->Draw();
+    gPad->Print( "/Users/samcorey/code/JpsiEIC/plots/plot_mTest_hepmc.pdf" );
+    gPad->Print( "/Users/samcorey/code/JpsiEIC/plots/plot_mTest_hepmc.png" );
+
+    makeCanvas();
+    mTest_root->SetLineColor(kBlack);
+    mTest_root->Draw();
+    gPad->Print( "/Users/samcorey/code/JpsiEIC/plots/plot_mTest_root.pdf" );
+    gPad->Print( "/Users/samcorey/code/JpsiEIC/plots/plot_mTest_root.png" );
 
     return 0;
 }

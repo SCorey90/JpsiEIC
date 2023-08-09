@@ -41,15 +41,20 @@ vector<TLorentzVector> decay_Jpsi( TH1F *cos2phi_hist , TLorentzVector lvJpsi ) 
     double elec_mass = 0.000511 ;
     double Jpsi_pt = lvJpsi.Pt();
     
-    double cos2phi_val = cos2phi_hist->GetBinContent( cos2phi_hist->FindBin(Jpsi_pt) ) ;
-    double phi_val = acos( cos2phi_val ) / 2 ;
+    double cos2phi_val = cos2phi_hist->GetBinContent( cos2phi_hist->FindBin(Jpsi_pt) );
+    auto * phi_sample_hist = new TH1F("phi_sample_hist", "phi sample hist", 1000, -3.14, 3.14);
+    for ( int i = 0; i < 1000 ; i++ ) {
+        phi_sample_hist->SetBinContent( i, 1 + cos2phi_val*cos( 2*phi_sample_hist->GetBinCenter(i) ) );
+    }
+    double phi_val = phi_sample_hist->GetRandom();
     
     TLorentzVector PosLV, ElecLV ;
     double az_ang =  lvJpsi.Phi() + phi_val ;
     double pol_ang = acos( rng.Uniform(-1, 1) );
-    double absP = sqrt((lvJpsi.M()*lvJpsi.M()/4) - elec_mass*elec_mass);
-    PosLV.SetPxPyPzE( (absP*sin(pol_ang)*cos(az_ang)), (absP*sin(pol_ang)*sin(az_ang)), (absP*cos(pol_ang)), (sqrt(absP*absP + elec_mass*elec_mass)) );
-    ElecLV.SetPxPyPzE( (-absP*sin(pol_ang)*cos(az_ang)), (-absP*sin(pol_ang)*sin(az_ang)), (-absP*cos(pol_ang)), (sqrt(absP*absP + elec_mass*elec_mass)) );
+    double E_daughter = lvJpsi.M()/2 ;
+    double absP = sqrt((E_daughter*E_daughter) - elec_mass*elec_mass);
+    PosLV.SetPxPyPzE( (absP*sin(pol_ang)*cos(az_ang)), (absP*sin(pol_ang)*sin(az_ang)), (absP*cos(pol_ang)), (E_daughter) );
+    ElecLV.SetPxPyPzE( (-absP*sin(pol_ang)*cos(az_ang)), (-absP*sin(pol_ang)*sin(az_ang)), (-absP*cos(pol_ang)), (E_daughter) );
     
     PosLV.Boost(lvJpsi.BoostVector());
     ElecLV.Boost(lvJpsi.BoostVector());
@@ -70,7 +75,7 @@ double calc_Phi( TLorentzVector lv1, TLorentzVector lv2) {
     double PcrossQ = (Px*Qy) - (Py*Qx);
     double cosphi = (Px*Qx + Py*Qy) / (lvPlus.Pt()*lvMinus.Pt());
     double PairPhi = acos(cosphi);
-    if ( PcrossQ > 0 ){
+        if ( PcrossQ > 0 ){
         return PairPhi - 3.141592;
     } else {
         return 3.141592 - PairPhi;
@@ -78,7 +83,7 @@ double calc_Phi( TLorentzVector lv1, TLorentzVector lv2) {
 }
 
 void GenElecPair() {
-
+    gErrorIgnoreLevel = kError;
     double p_photon = 1 ;
 
     TFile *fo = new TFile( "GenElecPairplots.root", "RECREATE" );
@@ -95,27 +100,30 @@ void GenElecPair() {
     no_photon_cos2phi_csv->ReadFile("/Users/samcorey/code/JpsiEIC/no_photon_cos2phivspt.csv", "x/D:y");
     no_photon_cos2phi_csv->Draw("y:x");
 
-    auto * pt_hist = new TH1F("pt_hist", "P_T hist to sample; P_{T}; counts", 50, 0, sqrt(0.16));
+    auto * pt_hist = new TH1F("pt_hist", "P_T hist to sample; P_{T} (GeV/c); counts", 100, 0, sqrt(0.16));
     double * sample_pt = pt_csv->GetV2();
     double * sample_dndp = pt_csv->GetV1();
-    for (int n=0; n<50; n++) {
+    for (int n=0; n<100; n++) {
+        vector<double> pt_diffs;
         for (int i=0; i<83; i++) {
-            if ( abs(sqrt(sample_pt[i]) - pt_hist->GetBinCenter(n+1)) < 0.8 * pt_hist->GetBinWidth(n+1) ) {
-                pt_hist->SetBinContent(n+1, sample_dndp[i]);
-            }
+            pt_diffs.push_back( abs( pt_hist->GetBinCenter(n+1) - sqrt(sample_pt[i+1])) );
         }
+        int min_index = distance( begin(pt_diffs), min_element( begin(pt_diffs), end(pt_diffs) ) );
+        pt_hist->SetBinContent(n+1, sample_dndp[min_index]);
     }
+    //pt_hist->SetBinContent(pt_hist->FindBin(0), pt_hist->GetBinContent(pt_hist->FindBin(0.02)));
+    
 
     auto * mCos2phi_hist = new TH1F("cos2phi_hist", "cos2phi hist to sample", 100, 0, 0.2);
     double * sample_xvals = cos2phi_csv->GetV2();
     double * sample_cos2phi = cos2phi_csv->GetV1();
-    for (int n=1; n<101; n++) {
+    for (int n=0; n<100; n++) {
         vector<double> pt_diffs;
         for (int i=0; i<166 ; i++) {
-            pt_diffs.push_back( abs(mCos2phi_hist->GetBinCenter(n+1) - sample_xvals[i]) );
+            pt_diffs.push_back( abs(mCos2phi_hist->GetBinCenter(n+1) - sample_xvals[i+1]) );
         }
         int min_index = distance( begin(pt_diffs), min_element( begin(pt_diffs), end(pt_diffs) ) );
-        mCos2phi_hist->SetBinContent(n, sample_cos2phi[min_index]);
+        mCos2phi_hist->SetBinContent(n+1, sample_cos2phi[min_index]);
     }
 
     auto * mNo_Photon_Cos2phi_hist = new TH1F("no_photon_cos2phi_hist", "cos2phi hist to sample", 100, 0, 0.2);
@@ -124,7 +132,7 @@ void GenElecPair() {
     for (int n=1; n<101; n++) {
         vector<double> pt_diffs;
         for (int i=0; i<253 ; i++) {
-            pt_diffs.push_back( abs(mNo_Photon_Cos2phi_hist->GetBinCenter(n+1) - no_photon_xvals[i]) );
+            pt_diffs.push_back( abs(mNo_Photon_Cos2phi_hist->GetBinCenter(n) - no_photon_xvals[i+1]) );
         }
         int min_index_no_photon = distance( begin(pt_diffs), min_element( begin(pt_diffs), end(pt_diffs) ) );
         mNo_Photon_Cos2phi_hist->SetBinContent(n, no_photon_cos2phi[min_index_no_photon]);
@@ -132,11 +140,13 @@ void GenElecPair() {
 
     //checking results
 
-    auto * mTest_Jpsi_PT = new TH1F("mTest_Jpsi_PT", "Reconstructed J/#Psi P_{T}; P_{T}^{2}; counts", 50, 0, 0.16);
+    auto * mTest_PairPhi = new TH1F("mTest_PairPhi", "Pair #Phi value; #phi (rad); counts", 50, -3.14, 3.14);
+    auto * mTest_Jpsi_PT = new TH1F("mTest_Jpsi_PT", "Reconstructed J/#Psi P_{T}; P_{T} (GeV/c); counts", 50, 0, sqrt(0.16));
     auto * mTest_Cos2phivsPT = new TH2F("mTest_Cos2phivsPT", "Sampled electron pair", 100, -2, 2, 50, 0, 0.2);   
     auto * mTest_E = new TH1F("mTest_E", "electron Energy hist", 100, -3.14, 3.14);
+    auto * mTest_ElecMass = new TH1F("mTest_ElecMass", "electron mass hist", 100, 0, 0.001);
     vector<TLorentzVector> JpsiVecs;
-    double n_samples = 1000000;
+    double n_samples = 100000;
     for (int i = 0; i<n_samples; i++){
         JpsiVecs.push_back( gen_Jpsi(pt_hist) );
     }
@@ -149,9 +159,11 @@ void GenElecPair() {
             double PairPhi = calc_Phi( PosLV, ElecLV ) ;
             double PairPT = (PosLV+ElecLV).Pt();
 
-            mTest_Jpsi_PT->Fill(PairPT*PairPT);
+            mTest_PairPhi->Fill(PairPhi);
+            mTest_Jpsi_PT->Fill(PairPT);
             mTest_Cos2phivsPT->Fill( 2*cos( 2*PairPhi ), PairPT );
             mTest_E->Fill( PairPhi );
+            mTest_ElecMass->Fill(PosLV.M());
         } else { 
             vector<TLorentzVector> pair_LVs = decay_Jpsi( mNo_Photon_Cos2phi_hist , JpsiVecs[i] );
             TLorentzVector PosLV = pair_LVs[0];
@@ -159,7 +171,7 @@ void GenElecPair() {
             double PairPhi = calc_Phi( PosLV, ElecLV ) ;
             double PairPT = (PosLV+ElecLV).Pt();
      
-            mTest_Jpsi_PT->Fill(PairPT*PairPT);
+            mTest_Jpsi_PT->Fill(PairPT);
             mTest_Cos2phivsPT->Fill( 2*cos( 2*PairPhi ), PairPT );
         }
     }
@@ -183,7 +195,8 @@ gPad->Print( "plots/plot_mTest_Jpsi_PT.pdf" );
 gPad->Print( "plots/plot_mTest_Jpsi_PT.png" );
 
 makeCanvas();
-mCos2phi_hist->Draw("colz");
+mCos2phi_hist->Draw();
+mCos2phi_hist->SetTitle("Theory cos2#phi Fourier Components vs. P_{T}; P_{T} (GeV/c); <2cos2#phi>");
 gPad->Print( "plots/plot_mCos2phi_hist.pdf" );
 gPad->Print( "plots/plot_mCos2phi_hist.png" );
 
@@ -194,14 +207,20 @@ gPad->Print( "plots/plot_mOtherTest_Cos2phivsPT.png" );
 
 makeCanvas();
 mCos2PhivsPTmoments->SetLineColor(kBlack);
-mCos2PhivsPTmoments->SetTitle("e^{+}e^{-} Pair cos2#phi Fourier Components vs. P_{T}; P_{T}, <2cos2#phi>");
+mCos2PhivsPTmoments->SetTitle("Sampled e^{+}e^{-} Pair cos2#phi Fourier Components vs. P_{T}; P_{T} (GeV/c); <2cos2#phi>");
+mCos2PhivsPTmoments->SetMaximum(0);
 mCos2PhivsPTmoments->Draw();
 gPad->Print( "plots/plot_mCos2PhivsPTmoments.pdf" );
 gPad->Print( "plots/plot_mCos2PhivsPTmoments.png" );
 
 makeCanvas();
-mTest_E->SetLineColor(kBlack);
-mTest_E->Draw();
+mTest_ElecMass->SetLineColor(kBlack);
+mTest_ElecMass->Draw();
+
+makeCanvas();
+mTest_PairPhi->Draw();
+gPad->Print( "plots/plot_mTest_PairPhi.pdf" );
+gPad->Print( "plots/plot_mTest_PairPhi.png" );
 
 fo->Write();  
 
