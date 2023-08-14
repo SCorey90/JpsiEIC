@@ -28,7 +28,7 @@ TRandom ptr_rng(global_rng());
 
 TLorentzVector gen_Jpsi( TH1F* Pt_hist ) {
     double jpsi_mass = rng.Gaus(3.1, 0.01);
-    double jpsi_pt = Pt_hist->GetRandom();
+    double jpsi_pt = /*rng.Uniform(0, 0.2);*/ Pt_hist->GetRandom();
     double jpsi_phi = rng.Uniform(-3.141592, 3.141592);
     double jpsi_eta = rng.Uniform(-6, 6);
     TLorentzVector lvJpsi;
@@ -146,7 +146,7 @@ void GenElecPair() {
     auto * mTest_E = new TH1F("mTest_E", "electron Energy hist", 100, -3.14, 3.14);
     auto * mTest_ElecMass = new TH1F("mTest_ElecMass", "electron mass hist", 100, 0, 0.001);
     vector<TLorentzVector> JpsiVecs;
-    double n_samples = 100000;
+    double n_samples = 1000000;
     for (int i = 0; i<n_samples; i++){
         JpsiVecs.push_back( gen_Jpsi(pt_hist) );
     }
@@ -208,7 +208,7 @@ gPad->Print( "plots/plot_mOtherTest_Cos2phivsPT.png" );
 makeCanvas();
 mCos2PhivsPTmoments->SetLineColor(kBlack);
 mCos2PhivsPTmoments->SetTitle("Sampled e^{+}e^{-} Pair cos2#phi Fourier Components vs. P_{T}; P_{T} (GeV/c); <2cos2#phi>");
-mCos2PhivsPTmoments->SetMaximum(0);
+//mCos2PhivsPTmoments->SetMaximum(0);
 mCos2PhivsPTmoments->Draw();
 gPad->Print( "plots/plot_mCos2PhivsPTmoments.pdf" );
 gPad->Print( "plots/plot_mCos2PhivsPTmoments.png" );
