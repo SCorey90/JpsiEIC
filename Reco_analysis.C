@@ -42,7 +42,8 @@ void Reco_analysis() {
     // Creating 1D histograms
     TH1F("h1", "ntuple", 100, -4, 4);
 
-    TFile * fo = new TFile( "analysis_plots.root", "RECREATE" );
+    //TFile * fo = new TFile( "analysis_plots.root", "RECREATE" );
+    TFile * fo = new TFile( "flat_pt_reco_plots.root", "RECREATE" );
 
     //TH1F("name", "title;xlabel;ylabel;zlabel", n nbins, xmin, xmax)
 
@@ -52,8 +53,8 @@ void Reco_analysis() {
     auto * mCos2phivsPT = new TH2F("mCos2phivsPT", "cos2#phi distribution vs P_{T}", 100, -2, 2, 10, 0, 0.2);
 
     //Open file with the tree
-    TFile *myFile = TFile::Open("/Users/samcorey/code/data/JpsiEIC_output_podio.root");
-    //TFile *myFile = TFile::Open("/Users/samcorey/eic/podio_output.root");
+    //TFile *myFile = TFile::Open("/Users/samcorey/code/data/JpsiEIC_output_podio.root");
+    TFile *myFile = TFile::Open("/Users/samcorey/code/data/flat_pt_Jpsi_sim.root");
     TTreeReader myReader("events", myFile);
 
     TTreeReaderArray<float> PxVals(myReader, "ReconstructedParticles.momentum.x");
@@ -93,6 +94,7 @@ fo -> cd();
 makeCanvas();
 mMass->SetLineColor(kBlack);
 mMass->Draw("E1");
+mMass->SetStats(0);
 gPad->Print( "RecoPlots/plot_mMass.pdf" );
 gPad->Print( "RecoPlots/plot_mMass.png" );
 
@@ -100,12 +102,14 @@ makeCanvas();
 mPt->SetLineColor(kBlack);
 gPad->SetLogy();
 mPt->Draw("E1");
+mPt->SetStats(0);
 gPad->Print( "RecoPlots/plot_mPt.pdf" );
 gPad->Print( "RecoPlots/plot_mPt.png" );
 
 makeCanvas();
 mPairPhi->SetLineColor(kBlack);
 mPairPhi->Draw("E1");
+mPairPhi->SetStats(0);
 gPad->Print( "RecoPlots/plot_mPairPhi.pdf" );
 gPad->Print( "RecoPlots/plot_mPairPhi.png" );
 
@@ -113,6 +117,7 @@ makeCanvas();
 mPTcos2phimoments->SetLineColor(kBlack);
 mPTcos2phimoments->SetTitle("Reconstructed 2#phi Fourier coefficient vs. Pair P_{T}; Pair P_{T} (GeV/c); <2cos2#phi>");
 mPTcos2phimoments->Draw("E1");
+mPTcos2phimoments->SetStats(0);
 gPad->Print( "RecoPlots/plot_mPTcos2phimoments.pdf" );
 gPad->Print( "RecoPlots/plot_mPTcos2phimoments.png" );
 

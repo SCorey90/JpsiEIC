@@ -17,9 +17,9 @@
 
 int ican2 = 0;
 void makeCanvas()  {
-    TCanvas * can = new TCanvas( TString::Format( "can%d", ican2++ ), "", 900, 600);
+    TCanvas * can = new TCanvas( TString::Format( "can%d", ican2++ ), "", 900, 900);
     //can->SetTopMargin(0.04);
-    can->SetRightMargin(0.35);
+    can->SetRightMargin(0.04);
 }
 
 std::random_device global_rng;
@@ -43,7 +43,7 @@ vector<TLorentzVector> decay_Jpsi( TH1F *cos2phi_hist , TLorentzVector lvJpsi ) 
     
     double cos2phi_val = cos2phi_hist->GetBinContent( cos2phi_hist->FindBin(Jpsi_pt) );
     auto * phi_sample_hist = new TH1F("phi_sample_hist", "phi sample hist", 1000, -3.14, 3.14);
-    for ( int i = 0; i < 1000 ; i++ ) {
+    for ( int i = 1; i < 5001 ; i++ ) {
         phi_sample_hist->SetBinContent( i, 1 + cos2phi_val*cos( 2*phi_sample_hist->GetBinCenter(i) ) );
     }
     double phi_val = phi_sample_hist->GetRandom();
@@ -207,8 +207,11 @@ gPad->Print( "plots/plot_mOtherTest_Cos2phivsPT.png" );
 
 makeCanvas();
 mCos2PhivsPTmoments->SetLineColor(kBlack);
-mCos2PhivsPTmoments->SetTitle("Sampled e^{+}e^{-} Pair cos2#phi Fourier Components vs. P_{T}; P_{T} (GeV/c); <2cos2#phi>");
-//mCos2PhivsPTmoments->SetMaximum(0);
+mCos2PhivsPTmoments->SetTitle("10^{6} events; P_{T} (GeV/c); <2cos2#phi>");
+mCos2PhivsPTmoments->SetStats(0);
+//mCos2PhivsPTmoments->SetTitleSize(0.05);
+//mCos2PhivsPTmoments->CenterTitle();
+//mCos2PhivsPTmoments->GetYAxis()->SetTitleSize(0.05);
 mCos2PhivsPTmoments->Draw();
 gPad->Print( "plots/plot_mCos2PhivsPTmoments.pdf" );
 gPad->Print( "plots/plot_mCos2PhivsPTmoments.png" );
